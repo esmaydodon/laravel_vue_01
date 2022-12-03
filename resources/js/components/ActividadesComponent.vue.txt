@@ -1,0 +1,610 @@
+<template>
+  <!-- <div class="container"> -->
+  <div style="width:auto; padding: 2px 0;">
+    <el-card class="box-card">
+      <div slot="header" class="clearfix">
+        <span class="card-title">Registro de Actividades</span>
+      </div>
+      <el-form label-position="left" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-form-item label="Área">
+              <el-select
+                ref="nomArea"
+                v-model="idXAreas"
+                filterable
+                remote
+                reserve-keyword
+                placeholder="Ingrese un área..."
+                :remote-method="remoteMethod"
+                :loading="loadingSelectArea"
+                style="width:100%"
+              >
+                <el-option
+                  v-for="item in optionsXAreas"
+                  :key="item.id"
+                  :label="item.nombre"
+                  :value="item.id"
+                ></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="7">
+            <el-form-item label="Fecha">
+              <el-date-picker
+                type="date"
+                v-model="fecha"
+                clearable
+                format="dd-MM-yyyy"
+                value-format="yyyy-MM-dd"
+                class="filter-item"
+                placeholder="Seleccione una fecha"
+                :picker-options="pickerOptions"
+                style="width: 100%;"
+              ></el-date-picker>
+            </el-form-item>
+          </el-col>
+          <el-col :span="7">
+            <!-- <el-form-item> -->
+            <el-button type="primary" @click="getListAsistencia">Buscar</el-button>
+            <!-- </el-form-item> -->
+          </el-col>
+        </el-row>
+      </el-form>
+    </el-card>
+
+    <el-card class="box-card">
+      <div slot="header" class="clearfix">
+        <span class="card-title">Tareas de Franco</span>
+        <!-- <el-button
+          size="mini"
+          class="filter-item"
+          style="float: right; margin-left: 10px;"
+          type="primary"
+          icon="icon-plus"
+          @click="handleCerrarAsistencia()"
+        >Cerrar asistencia</el-button>-->
+        <!-- <el-button 
+          size="mini"
+          class="filter-item"
+          style="float: right; margin-left: 10px;"
+          type="primary"
+          icon="icon-printer"
+        > Imprimir</el-button>
+        <el-button
+          size="mini"
+          class="filter-item"
+          style="float: right; margin-left: 10px;"
+          type="primary"
+          icon="icon-refresh"
+          @click="handleRefresh"
+        >Actualizar</el-button>-->
+      </div>
+      <div>
+        <el-table
+          ref="TablaTareas"
+          :data="listaTareas"
+          row-key="id"
+          v-loading="listLoading"
+          max-height="100%"
+          height="100%"
+          size="mini"
+          fit
+          border
+          highlight-current-row
+          style="width:100%;min-height:450px"
+          :cell-style="{ padding: '0', heigth: '21px' }"
+        >
+          <el-table-column width="50">
+            <template slot-scope="scope">
+              <span>{{ scope.row.index }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="ID" width="65">
+            <template slot-scope="scope">
+              <span>{{ scope.row.id }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Fecha Inicio">
+            <template slot-scope="scope">
+              <span>{{ scope.row.FechaHoraInicio }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Fecha Fin">
+            <template slot-scope="scope">
+              <span>{{ scope.row.FechaHoraFin }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Modalidad">
+            <template slot-scope="scope">
+              <span v-if="scope.row.presencialRemoto == 'R'">Remoto</span>
+              <span v-else>Presencial</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <pagination
+          v-show="total > 0"
+          :total="total"
+          :page.sync="listQuery.page"
+          :limit.sync="listQuery.limit"
+          @pagination="getTareas"
+        />
+      </div>
+    </el-card>
+    <!-- formulario de registro de numExpediente para Justificacion -->
+    <el-dialog
+      :title="'Documento de Justificación'"
+      :visible.sync="newDialogFormVisible"
+      width="40%"
+    >
+      <div v-loading="justificaNewLoading" class="form-container">
+        <el-form
+          ref="JustificacionForm"
+          :model="currentAsistencia"
+          label-position="left"
+          label-width="150px"
+          :inline-message="true"
+        >
+          <el-form-item label="Expediente">
+            <el-select
+              ref="nroExp"
+              v-model="idExpediente"
+              filterable
+              remote
+              reserve-keyword
+              placeholder="Ingrese un nro. de expediente..."
+              :remote-method="remoteMethodExpediente"
+              :loading="loadingSelectExpediente"
+              style="width:100%"
+              @change="descripcionRefresh"
+            >
+              <el-option
+                v-for="item in optionsExpedientes"
+                :key="item.cod_expediente"
+                :label="item.num_expediente"
+                :value="item.cod_expediente"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="Descripcion Expediente" style="margin:0">
+            <el-input
+              type="textarea"
+              maxlength="100"
+              :show-word-limit="true"
+              :rows="5"
+              :disabled="true"
+              suffix-icon="icon-info"
+              v-model="descripcionExpediente"
+            />
+          </el-form-item>
+          <el-form-item label="Trabajador" style="margin:0">
+            <el-input
+              clearable
+              :disabled="true"
+              suffix-icon="icon-user"
+              v-model="currentAsistencia.apenom"
+            />
+          </el-form-item>
+          <el-form-item label="DNI" style="margin:0">
+            <el-input
+              suffix-icon="icon-envelope-letter"
+              :disabled="true"
+              v-model="currentAsistencia.dni"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="handleCancelJustificacion">Cancel</el-button>
+        <el-button type="primary" @click="addJustificacion">Guardar</el-button>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+
+<script>
+import Pagination from "@/components/Pagination"; // Secondary package based on el-pagination
+import AsistenciaResource from "@/api/asistencia";
+import TareaResource from "@/api/tarea";
+import TobreroResource from "@/api/tobrero";
+import XAreaResource from "@/api/xarea";
+import ExpedienteResource from "@/api/expediente";
+import { parseTime } from "@/utils";
+
+const asistenciaResource = new AsistenciaResource();
+const tareaResource = new TareaResource();
+const tobreroResource = new TobreroResource();
+const xareaResource = new XAreaResource();
+const expedienteResource = new ExpedienteResource();
+
+export default {
+  name: "Actividades",
+  components: { Pagination },
+  props: { auth: Object },
+  directives: {
+    focus: {
+      inserted: function(el) {
+        el.focus();
+      }
+    }
+  },
+  filters: {
+    statusPRM(status) {
+      const statusMap = {
+        PRESENCIAL: "success",
+        REMOTO: "danger",
+        MIXTO: "warning"
+      };
+      return statusMap[status];
+    },
+    statusMarca(status) {
+      const statusMap = {
+        A: "success",
+        F: "danger"
+      };
+      return statusMap[status];
+    },
+    statusCerrado(status) {
+      const statusMap = {
+        A: "success",
+        C: "danger"
+      };
+      return statusMap[status];
+    }
+  },
+  data() {
+    return {
+      pickerOptions: {
+        disabledDate(time) {
+          return time.getTime() > Date.now();
+        }
+      },
+      listLoading: false,
+      asistenciaDeHoy: false,
+      // listQuery: {
+      //   page: 1,
+      //   limit: 15,
+      //   buscar: "",
+      //   criterio: "",
+      //   id_area: "",
+      //   fecha: ""
+      // },
+      listQuery: {
+        page: 1,
+        limit: 15,
+        buscar: ""
+      },
+      nonAdminRoles: ["usuario"],
+      currentUser_id: 0,
+      currentAsistencia: {}, // almacena los datos dle trabajador y su asistencia seleccionado para justificar
+      newDialogFormVisible: false,
+      justificaNewLoading: false,
+      // variables para select area
+      datosJefe: null,
+      listAreas: null,
+      idXAreas: "",
+      optionsXAreas: [],
+      loadingSelectArea: false,
+      // fin variables select area
+      // variables para select expediente
+      listExpedientes: null,
+      idExpediente: "",
+      optionsExpedientes: [],
+      loadingSelectExpediente: false,
+
+      descripcionExpediente: "",
+      // fin variables select expediente
+      fecha: "", // para la fecha de busqueda
+      listaTareas: [],
+      listAsistenciaDelDia: [], // almacena la lista de los ultimos movimientos del area origen
+      asistenciaHoy: {},
+      pagination: [],
+      errorsForms: [],
+      total: 0,
+      vdata: {},
+      vmeta: {}
+    };
+  },
+  created() {
+    this.getTareas();
+    //this.getListXAreas();
+  },
+
+  methods: {
+    cleanFormExpediente() {
+      this.optionsExpedientes = [];
+      this.descripcionExpediente = "";
+      this.idExpediente = "";
+    },
+
+    /* accede remotamente a listado de areas para select */
+    remoteMethod(query) {
+      if (query !== "") {
+        this.loadingSelectArea = true;
+        setTimeout(() => {
+          this.loadingSelectArea = false;
+          this.optionsXAreas = this.listAreas.filter(item => {
+            return item.nombre.toUpperCase().indexOf(query.toUpperCase()) > -1;
+          });
+        }, 200);
+      } else {
+        this.optionsXAreas = [];
+      }
+    },
+    /* accede remotamente a listado de expedientes para select */
+    async remoteMethodExpediente(query) {
+      if (query !== "") {
+        this.loadingSelectExpediente = true;
+        const { data } = await expedienteResource.selectFind({ buscar: query });
+        this.listExpedientes = data;
+        setTimeout(() => {
+          this.loadingSelectExpediente = false;
+          this.optionsExpedientes = this.listExpedientes.filter(item => {
+            return (
+              item.num_expediente.toUpperCase().indexOf(query.toUpperCase()) >
+              -1
+            );
+          });
+        }, 500);
+      } else {
+        this.optionsExpedientes = [];
+      }
+    },
+
+    /* se ejecuta cuando selecciona un expediente */
+    descripcionRefresh() {
+      this.optionsExpedientes.forEach((element, index) => {
+        if (element["cod_expediente"] == this.idExpediente)
+          this.descripcionExpediente = element["descripcion"];
+      });
+    },
+
+    async getTareas()
+    {
+      const { limit, page } = this.listQuery;
+      this.listLoading = true;
+      const { data, meta } = await tareaResource.list(this.listQuery);
+      this.listaTareas = data;
+      if (meta.total > 0) {
+        this.listaTareas.forEach((element, index) => {
+          element["index"] = (page - 1) * limit + index + 1;
+        });
+        this.total = meta.total;
+      }
+      this.listLoading = false;
+    },
+
+    async getListAsistencia() {
+      const { limit, page } = this.listQuery;
+      this.listLoading = true;
+      this.listQuery.id_area = this.idXAreas;
+      this.listQuery.fecha = this.fecha;
+      const { data, meta } = await asistenciaResource.list(this.listQuery);
+      this.listAsistenciaDelDia = data;
+      //console.log(meta.total);
+      if (meta.total > 0) {
+        this.listAsistenciaDelDia.forEach((element, index) => {
+          element["index"] = (page - 1) * limit + index + 1;
+        });
+        this.total = meta.total;
+        //console.log(this.listAsistenciaDelDia[0].asistencia_id);
+        let mid = this.listAsistenciaDelDia[0].asistencia_id;
+        this.getFechaAsistencia(mid);
+      }
+      this.listLoading = false;
+      this.asistenciaDeHoy = true;
+    },
+
+    getListXAreas() {
+      xareaResource
+        .list({})
+        .then(response => {
+          this.listAreas = response.data;
+          this.$nextTick(() => {
+            this.$refs.nomArea.focus();
+          });
+        })
+        .catch(error => {
+          console.log(error);
+        });
+    },
+
+    async getFechaAsistencia(id) {
+      const { data } = await asistenciaResource.get(id);
+      this.asistenciaHoy = data;
+    },
+
+    handleRefresh() {
+      //this.listQuery.page = 1;
+      this.getListAsistencia();
+    },
+    /* cuando se da click en el boton check color verde */
+    handleJustifica(row) {
+      this.cleanFormExpediente();
+      if (row.cerrado !== "C") {
+        this.$message({
+          message: "Asistencia del área está abierta aún",
+          type: "info",
+          duration: 1 * 1000
+        });
+        return false;
+      }
+      // actualizamos currentAsistencia
+      this.currentAsistencia = row;
+      // presenta el formulario
+      this.newDialogFormVisible = true;
+      this.$nextTick(() => {
+        this.$refs.nroExp.focus();
+      });
+    },
+    /* cuando se da click en boton Cancel del formulario de expediente */
+    handleCancelJustificacion() {
+      this.currentAsistencia = {};
+      this.newDialogFormVisible = false;
+    },
+
+    addJustificacion() {
+      let me = this;
+      let row = this.currentAsistencia;
+
+      if (row.numExpediente_id === null) {
+        me.listLoading = true;
+        asistenciaResource
+          .justifica(row.id, { numExpediente_id: this.idExpediente })
+          .then(response => {
+            me.listLoading = false;
+            this.$message({
+              message: "Justificación asignada correctamente a " + row.apenom,
+              type: "success",
+              duration: 1 * 1000
+            });
+            //row.marca = response.data.marca;
+            //row.numExpediente_id = response.data.numExpediente_id;
+            //row.fecha_justifica = parseTime(response.data.fecha_justifica);
+
+            this.currentAsistencia = {}; //retornamos a vacio la asistencia actual seleccionada
+            this.newDialogFormVisible = false;
+            me.handleRefresh();
+          })
+          .catch(error => {
+            console.log(error);
+            me.listLoading = false;
+          });
+      } else {
+        this.$message({
+          message:
+            "Justificación ya asignada con " +
+            row.numExpediente +
+            " el " +
+            row.fecha_justifica,
+          type: "warning",
+          duration: 1 * 1000
+        });
+        return true;
+      }
+    },
+
+    delJustificacion(row) {
+      //console.log(row.numExpediente_id == null);
+      let me = this;
+      if (row.cerrado !== "C") {
+        this.$message({
+          message: "Asistencia del área está abierta aún",
+          type: "info",
+          duration: 1 * 1000
+        });
+        return false;
+      }
+      if (!(row.numExpediente_id == null)) {
+        //console.log('Asistencia id: ' . row.asistencia_id);
+        me.listLoading = true;
+        asistenciaResource
+          .anulaJustifica(row.id, { numExpediente_id: 1000 })
+          .then(response => {
+            me.listLoading = false;
+            this.$message({
+              message: "Inasistencia asignada correctamente a " + row.apenom,
+              type: "success",
+              duration: 1 * 1000
+            });
+            row.marca = response.data.marca;
+            row.numExpediente_id = response.data.numExpediente_id;
+            row.numExpediente = "";
+            row.fecha_justifica = parseTime(response.data.fecha_justifica);
+            //me.handleRefresh();
+          })
+          .catch(error => {
+            console.log(error);
+            me.listLoading = false;
+          });
+      } else {
+        this.$message({
+          message: "El trabajador tiene asistencia: " + row.marca,
+          type: "warning",
+          duration: 1 * 1000
+        });
+        return true;
+      }
+    },
+
+    handleCerrarAsistencia() {
+      let me = this;
+      if (this.asistenciaHoy.cerrado === "C") {
+        this.$message({
+          message: "Asistencia del área está cerrada",
+          type: "info",
+          duration: 5 * 1000
+        });
+        return false;
+      }
+      let asist = {};
+      asist.id = me.listAsistenciaDelDia[0].asistencia_id;
+      Swal.fire({
+        icon: "warning",
+        title: "Cerrar Asistencia de hoy <br>" + this.asistenciaHoy.fecha,
+        html: "¿Desea cerrar la asistencia de " + this.datosJefe.nom_area + "?",
+        showConfirmButton: true,
+        showCancelButton: true,
+        confirmButtonText: "Aceptar",
+        cancelButtonText: "Cancelar",
+        focusCancel: true,
+        confirmButtonColor: "#d33"
+      }).then(result => {
+        if (result.value) {
+          //delete confirm
+          me.listLoading = true;
+          asistenciaResource
+            .cerrarAsistencia(asist.id)
+            .then(response => {
+              this.$message({
+                message:
+                  "Asistencia del área " +
+                  this.datosJefe.nom_area +
+                  " CERRADA correctamente",
+                type: "success",
+                duration: 5 * 1000
+              });
+              this.handleRefresh();
+            })
+            .catch(error => {
+              console.log(error);
+              me.listLoading = false;
+            });
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+          console.log("Cancel");
+        }
+      });
+    }
+  },
+
+  mounted() {
+    // this.getTareas();
+    //this.listarUsuarios(this.buscar, this.criterio, (this.tipoAccion = 0));
+  }
+};
+</script>
+
+<style type="text/css">
+.swal2-container {
+  z-index: 10000;
+}
+
+.el-form-item {
+  margin-bottom: 5px !important;
+}
+
+/* .el-row {
+  margin-bottom: 20px;
+} */
+/* .el-select .el-input.is-focus  */
+.el-select .el-input__inner {
+  /* border-color: #409EFF; */
+  text-transform: uppercase;
+}
+.el-row:last-child {
+  margin-bottom: 0;
+}
+</style>
